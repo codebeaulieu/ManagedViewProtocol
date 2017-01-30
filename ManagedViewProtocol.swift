@@ -1,30 +1,28 @@
 //
-//  ManagedObjectContextProtocol.swift
+//  ManagedObserverProtocol.swift
 //  Block
 //
-//  Created by Dan Beaulieu on 12/29/16.
-//  Copyright © 2016 Dan Beaulieu. All rights reserved.
+//  Created by Dan Beaulieu on 1/29/17.
+//  Copyright © 2017 Dan Beaulieu. All rights reserved.
 //
 
 import Foundation
 import CoreData
 
-public typealias DataContext = NSManagedObjectContext
-
-protocol ManagedObjectContextProtocol: class {
-    var moc: NSManagedObjectContext! { get set }
+protocol ManagedObserverProtocol : class {
+    // since we're using block syntax for our NotificationCenter observers, we'll need a way to hold a reference to them
+    // so that we can release them
+    var didChangeNotification : NSObjectProtocol? { get set }
+    var willSaveNotification : NSObjectProtocol? { get set }
+    var didSaveNotification : NSObjectProtocol? { get set }
 }
 
-extension ManagedObjectContextProtocol {
-    func checkManagedObjectContext(_ name : String) {
-        if moc == nil {
-           assertionFailure("\(name) is missing the managed object context.")
-        }
-    }
+extension ManagedObserverProtocol {
+
     
     func addContextNotificationObservers(_ moc : DataContext) {
         print("adding observers")
-        NotificationCenter.default.addObserver(forName: .NSManagedObjectContextObjectsDidChange, object: nil, queue: nil) { note in
+        didChangeNotification = NotificationCenter.default.addObserver(forName: .NSManagedObjectContextObjectsDidChange, object: moc, queue: nil) { note in
             if let updated = note.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>, updated.count > 0 {
                 print("updated: \(updated)")
             }
@@ -38,25 +36,33 @@ extension ManagedObjectContextProtocol {
             }
         }
         
-        NotificationCenter.default.addObserver(forName: .NSManagedObjectContextWillSave, object: nil, queue: nil) { note in
+        
+        willSaveNotification = NotificationCenter.default.addObserver(forName: .NSManagedObjectContextWillSave, object: moc, queue: nil) { note in
             print("managedObjectContextWillSave")
             guard let userInfo = note.userInfo else { return }
             print(userInfo)
         }
         
-        NotificationCenter.default.addObserver(forName: .NSManagedObjectContextDidSave, object: nil, queue: nil) { note in
+        didSaveNotification = NotificationCenter.default.addObserver(forName: .NSManagedObjectContextDidSave, object: moc, queue: nil) { note in
             print("managedObjectContextDidSave")
             guard let userInfo = note.userInfo else { return }
             print(userInfo)
         }
     }
     
-    func removeContextNotificationObservers(_ moc : DataContext) {
+    func removeContextNotificationObservers() {
         print("removing observers")
-        NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSManagedObjectContextObjectsDidChange, object: moc)
-        NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSManagedObjectContextWillSave, object: moc)
-        NotificationCenter.default.removeObserver(self, name: NSNotification.Name.NSManagedObjectContextDidSave, object: moc)
+        if let didChange = didChangeNotification {
+            NotificationCenter.default.removeObserver(didChange)
+        }
         
+        if let willSave = willSaveNotification {
+            NotificationCenter.default.removeObserver(willSave)
+        }
+        
+        if let didSave = didSaveNotification {
+            NotificationCenter.default.removeObserver(didSave)
+        }
     }
  
 }
